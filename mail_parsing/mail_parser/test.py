@@ -1,6 +1,7 @@
 import os
 
-from mail_parsing.mail_parser import parse_mail_byte, MailFile, FileExtension
+from mail_parsing.mail_parser.enums import FileExtension
+from mail_parsing.mail_parser.mail.parser import parse_mail_byte
 from mail_parsing.mail_parser.thread import create_thread_from_mail
 
 if __name__ == '__main__':

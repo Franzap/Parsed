@@ -2,80 +2,84 @@ from typing import Optional
 
 from .enums import MailLangBounds
 from .model import *
-from .. import BodyParts, get_body, substring_from_guardians, get_email_address, Body, Header
+from ..mail.model import MailObject, Body, BodyParts, Header
+from ..mail.parser import get_body, get_email_address
+from ..utils import strp_ita_string, substring_from_guardians
+
+
+def get_bounded_value(text, bounds: MailLangBounds):
+    bounded_value = ""
+    for bound_tuple in bounds.value:
+        bounded_value = substring_from_guardians(
+            *bound_tuple,
+            string=text
+        )
+        if bounded_value:
+            return bounded_value
+    return bounded_value
 
 
 def create_mail_from_text(mail_str: str):
-    def get_bounded_value(text, bounds: MailLangBounds):
-        bounded_value = ""
-        for bound_tuple in bounds.value:
-            bounded_value = substring_from_guardians(
-                *bound_tuple,
-                string=text
-            )
-            if bounded_value:
-                return bounded_value
-        return bounded_value
-    bounds = MailLangBounds.ENG.value if mail_str[:5] == "From:" else MailLangBounds.ITA.value
-    sender = get_bounded_value(
-        mail_str,
-        bounds.FROM
-    )
-    sender = get_email_address(sender)
-    received = get_bounded_value(
-        mail_str,
-        bounds.RECEIVED
-    )
-    to = get_bounded_value(
-        mail_str,
-        bounds.TO
-    )
-    if to:
-        to = to.strip()
-        to = to.split(";")
-        to = list(map(get_email_address, to))
-    cc = get_bounded_value(
-        mail_str,
-        bounds.CC
-    )
-    if cc:
-        cc = cc.split(";")
-        cc = list(map(get_email_address, cc))
+    try:
+        bounds = MailLangBounds.ENG.value if mail_str[:5] == "From:" else MailLangBounds.ITA.value
+        sender = get_bounded_value(
+            mail_str,
+            bounds.FROM
+        )
+        sender = get_email_address(sender)
+        received = get_bounded_value(
+            mail_str,
+            bounds.RECEIVED
+        )
+        if received:
+            received = received.strip()
+            try:
+                received = strp_ita_string(received)
+            except Exception as e:
+                received = strp_ita_string(received, "%A, %B %d, %Y %I:%M:%S %p")
+        to = get_bounded_value(
+            mail_str,
+            bounds.TO
+        )
+        to = get_email_address(to)
+        cc = get_bounded_value(
+            mail_str,
+            bounds.CC
+        )
+        cc = get_email_address(cc)
+        subject_and_body = get_bounded_value(
+            mail_str,
+            bounds.SUB_BODY
+        )
+        subject = get_bounded_value(
+            subject_and_body,
+            bounds.SUBJECT
+        )
+        body = get_bounded_value(
+            subject_and_body,
+            bounds.BODY
+        )
+        body = body.replace("C1 Confidential", "").strip()
 
-    subject_and_body = get_bounded_value(
-        mail_str,
-        bounds.SUB_BODY
-    )
-
-    subject = get_bounded_value(
-        subject_and_body,
-        bounds.SUBJECT
-    )
-
-    body = get_bounded_value(
-        subject_and_body,
-        bounds.BODY
-    )
-    body = body.replace("C1 Confidential", "").strip()
-
-    body = Body(
-        content=[BodyParts(
-            content=body,
-            content_type="text/plain"
-        )]
-    )
-    header = Header(
-        From=sender,
-        To=to,
-        Received=received,
-        Subject=subject,
-        Cc=cc
-    )
-    return MailObject(
-        header=header,
-        body=body
-    )
-
+        body = Body(
+            content=[BodyParts(
+                content=body,
+                content_type="text/plain"
+            )]
+        )
+        header = Header(
+            From=sender,
+            To=to,
+            Received=received,
+            Subject=subject,
+            Cc=cc
+        )
+        return MailObject(
+            header=header,
+            body=body
+        )
+    except Exception as e:
+        raise e
 
 def create_thread_from_text(mail_text: str) -> Optional[MailThread]:
     """
@@ -98,29 +102,28 @@ def create_thread_from_mail(mail: MailObject) -> Optional[MailThread]:
     mail_thread = MailThread()
     mails = [mail]
     if mail.body.attachments:
-        for attachment in mail.body.attachments:
-            if isinstance(attachment, MailFile):
-                mails.append(attachment.mail_obj)
+        mails.extend(list(map(lambda file: file.mail_obj if isinstance(file, MailFile) else None,mail.body.attachments)))
+
     for mail in mails:
-        mail_thread.add_mail(mail)
-        text: str = get_body(mail, "text/plain")
-        try:
-            thread = create_thread_from_text(text)
-            if thread:
-                mail_thread.add_mail(thread.thread)
-        except Exception as e:
-            continue
+        if mail:
+            mail_thread.add_mail(mail)
+            text: str = get_body(mail, "text/plain")
+            try:
+                thread = create_thread_from_text(text)
+                if thread:
+                    mail_thread.add_mail(thread.thread)
+            except Exception as e:
+                print(e)
+                continue
     return mail_thread
 
 
 def split_thread_text(text: str) -> List[str]:
     confronto = [text.find("Da:"), text.find("From:")]
     confronto = list(filter(lambda x: x >= 0, confronto))
-    if confronto:
-        confronto = min(confronto)
-    else:
+    if not confronto:
         raise Exception
-        return text
+    confronto = min(confronto)
     i = confronto + 1
     text_len = len(text)
     splitted_text = []

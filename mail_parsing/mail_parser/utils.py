@@ -5,7 +5,7 @@ from zipfile import ZipFile
 import io
 import os
 from os.path import splitext as os_split_extension
-from .model import File
+from mail_parsing.mail_parser.mail.model import File
 from .enums import FileExtension
 
 
@@ -94,3 +94,41 @@ def substring_from_guardians(
     return string[:second_index]
 
 
+from datetime import datetime
+
+weekday = {
+    "lunedì": "monday",
+    "martedì": "tuesday",
+    "mercoledì": "wednesday",
+    "giovedì": "thursday",
+    "venerdì": "friday",
+    "sabato": "saturday",
+    "domenica": "sunday"
+}
+months = {
+    "gennaio": "january",
+    "febbraio": "february",
+    "marzo": "march",
+    "aprile": "april",
+    "maggio": "may",
+    "giugno": "june",
+    "luglio": "july",
+    "agosto": "august",
+    "settembre": "september",
+    "ottobre": "october",
+    "novembre": "november",
+    "dicembre": "december"
+}
+
+
+def replace_datetime_piece(datetime_string: str):
+    for mesi in months.items():
+        datetime_string = datetime_string.replace(*mesi)
+    for giorni in weekday.items():
+        datetime_string = datetime_string.replace(*giorni)
+    return datetime_string
+
+
+def strp_ita_string(datetime_string: str, _format: str = "%A %d %B %Y %H:%M"):
+    datetime_string = replace_datetime_piece(datetime_string)
+    return datetime.strptime(datetime_string, _format)
