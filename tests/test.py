@@ -1,11 +1,11 @@
 import os
 
-from mail_parsing.mail_parser.enums import FileExtension
-from mail_parsing.mail_parser.mail.parser import parse_mail_byte
-from mail_parsing.mail_parser.thread import create_thread_from_mail
+from parsed.enums import FileExtension
+from parsed.mail import parse_mail_byte
+from parsed.thread import create_thread_from_mail
 
 if __name__ == '__main__':
-    archive = "../../esempi_mail_full"
+    archive = "../../resources/esempi_mail_full"
     for mail_dir in os.listdir(archive):
         mail_dir = os.path.join(archive, mail_dir)
         for file in os.listdir(mail_dir):
@@ -14,5 +14,4 @@ if __name__ == '__main__':
                     byte = eml.read()
                 mail = parse_mail_byte(byte)
                 mail_thread = create_thread_from_mail(mail)
-
                 print()

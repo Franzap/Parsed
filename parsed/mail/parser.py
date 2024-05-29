@@ -8,8 +8,8 @@ from typing import Union, List
 from .model import MailObject, BodyParts, EmailAddress, Header, File, MailFile, Body
 from .exceptions import ParseError
 
-from ..enums import FileExtension
-from ..utils import flatten_attachment
+from parsed.enums import FileExtension
+from parsed.utils import flatten_attachment
 
 
 def get_body(mail: Union[MailObject, BodyParts], tipe: ...):

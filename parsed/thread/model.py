@@ -2,7 +2,7 @@ from typing import Union, List
 
 from pydantic import BaseModel
 
-from mail_parsing.mail_parser.mail.model import MailObject, MailFile
+from parsed.mail.model import MailObject, MailFile
 
 
 class MailThread(BaseModel):

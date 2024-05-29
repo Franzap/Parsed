@@ -4,7 +4,7 @@ from .enums import MailLangBounds
 from .model import *
 from ..mail.model import MailObject, Body, BodyParts, Header
 from ..mail.parser import get_body, get_email_address
-from ..utils import strp_ita_string, substring_from_guardians
+from parsed.utils import strp_ita_string, substring_from_guardians
 
 
 def get_bounded_value(text, bounds: MailLangBounds):

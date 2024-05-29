@@ -5,8 +5,8 @@ from zipfile import ZipFile
 import io
 import os
 from os.path import splitext as os_split_extension
-from mail_parsing.mail_parser.mail.model import File
-from .enums import FileExtension
+from parsed.mail import File
+from parsed.enums import FileExtension
 
 
 def extract_p7m(
