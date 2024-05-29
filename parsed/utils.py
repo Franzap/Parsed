@@ -7,6 +7,7 @@ import os
 from os.path import splitext as os_split_extension
 from parsed.enums import FileExtension
 from parsed.mail.model import File
+from datetime import datetime
 
 
 def extract_p7m(
@@ -94,7 +95,6 @@ def substring_from_guardians(
     return string[:second_index]
 
 
-from datetime import datetime
 
 weekday = {
     "lunedì": "monday",

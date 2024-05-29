@@ -1,10 +1,11 @@
 from typing import Optional
 
 from .enums import MailLangBounds
-from .model import *
-from ..mail.model import MailObject, Body, BodyParts, Header
+from .model import MailThread
+from ..mail.model import MailObject, Body, BodyParts, Header, MailFile
 from ..mail.parser import get_body, get_email_address
 from parsed.utils import strp_ita_string, substring_from_guardians
+from typing import List
 
 
 def get_bounded_value(text, bounds: MailLangBounds):
@@ -35,7 +36,7 @@ def create_mail_from_text(mail_str: str):
             received = received.strip()
             try:
                 received = strp_ita_string(received)
-            except Exception as e:
+            except Exception:
                 received = strp_ita_string(received, "%A, %B %d, %Y %I:%M:%S %p")
         to = get_bounded_value(
             mail_str,
@@ -81,6 +82,7 @@ def create_mail_from_text(mail_str: str):
     except Exception as e:
         raise e
 
+
 def create_thread_from_text(mail_text: str) -> Optional[MailThread]:
     """
         Da: ...text...
@@ -102,7 +104,8 @@ def create_thread_from_mail(mail: MailObject) -> Optional[MailThread]:
     mail_thread = MailThread()
     mails = [mail]
     if mail.body.attachments:
-        mails.extend(list(map(lambda file: file.mail_obj if isinstance(file, MailFile) else None,mail.body.attachments)))
+        mails.extend(
+            list(map(lambda file: file.mail_obj if isinstance(file, MailFile) else None, mail.body.attachments)))
 
     for mail in mails:
         if mail:

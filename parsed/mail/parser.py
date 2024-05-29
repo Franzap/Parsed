@@ -205,7 +205,7 @@ def get_mail(
                 encoding=mime.get("Content-Transfer-encoding")
             )
         return get_mail_obj(mime)
-    except ParseError as pe:
+    except ParseError:
         return
     except Exception as e:
         raise e
