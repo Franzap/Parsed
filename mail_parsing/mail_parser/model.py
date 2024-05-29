@@ -98,23 +98,5 @@ class MailFile(File, BaseModel):
         else:
             super().__init__(**file.dict(), **kwargs)
 
-
-class MailThread(BaseModel):
-    thread: List[MailObject, MailFile] = []
-    ordered: bool = False
-
-    def sort(self, reverse: bool = False):
-        self.thread.sort(
-            reverse=reverse
-        )
-        self.ordered = True
-
-    def __len__(self):
-        return len(self.thread)
-
-    def add_mail(self, mail: MailObject|MailFile):
-        self.thread.append(mail)
-
-
 BodyParts.update_forward_refs()
 Body.update_forward_refs()

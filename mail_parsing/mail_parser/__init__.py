@@ -6,94 +6,36 @@ from email import message_from_bytes
 from .enums import FileExtension
 from .exceptions import ParseError
 from .model import *
+from .thread.model import MailThread
 from .utils import flatten_attachment, substring_from_guardians
 
 
-def create_thread_from_mail(mail: MailObject) -> Optional[MailThread]:
-    """
-        Da: ...text...
-        Inviato: ...text...
-        A: ...text...
-        Cc: ...text...
-        Oggetto: ...text...
-    """
-    text: str = str(mail)
-    text = substring_from_guardians("Da: ", None, text)
-    tokens = text.split("Da: ")
-    thread = MailThread()
-    for str_token in tokens:
-        if str_token != "":
-            str_token = "Da: " + str_token
-            to = substring_from_guardians(
-                "Da: ",
-                "Inviato: ",
-                str_token
-            ).strip()
+def get_body(mail: MailObject | BodyParts, tipe: ...):
+    if isinstance(mail, MailObject):
+        for elem in mail.body.content:
+            if isinstance(elem, BodyParts):
+                return get_body(elem, tipe)
+    else:
+        if isinstance(mail.content, list):
+            for elem in mail.content:
+                return get_body(elem, tipe)
+        else:
+            if mail.content_type == tipe:
+                return mail.content
+            else:
+                return get_body(mail, tipe)
 
-            received = substring_from_guardians(
-                "Inviato: ",
-                "A: ",
-                str_token
-            ).strip()
 
-            sender = substring_from_guardians(
-                "A: ",
-                "Cc",
-                str_token
-            ) or substring_from_guardians(
-                "A: ",
-                "Oggetto: ",
-                str_token
-            )
+def get_email_address(target: str):
+    address = target.strip()
+    address = parseaddr(address)
 
-            if sender:
-                sender = sender.strip()
-                sender = sender.split(";")
-            cc = substring_from_guardians(
-                "Cc",
-                "Oggetto: ",
-                str_token
-            )
+    return EmailAddress(
+        nickname=address[0],
+        address=address[1]
+    )
 
-            if cc:
-                cc = cc.split(";")
 
-            subject_and_body = substring_from_guardians(
-                "Oggetto: ",
-                None,
-                str_token
-            ).strip()
-
-            subject = substring_from_guardians(
-                None,
-                "\n",
-                subject_and_body
-            ).strip()
-
-            body = substring_from_guardians(
-                "\n",
-                None,
-                subject_and_body
-            ).strip()
-
-            body = body.replace("C1 Confidential", "").strip()
-
-            body = Body(
-                content=body
-            )
-
-            thread.append(
-                MailObject(
-                    to=sender,
-                    sender=to,
-                    received=received,
-                    subject=subject,
-                    body=body,
-                    cc=cc
-                )
-            )
-
-    return thread
 
 
 def parse_mail_byte(mail_byte: bytes):

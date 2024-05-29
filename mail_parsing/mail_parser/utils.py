@@ -92,3 +92,5 @@ def substring_from_guardians(
     if second_index == -1:
         return None
     return string[:second_index]
+
+
