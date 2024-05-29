@@ -1,12 +1,14 @@
 [tool.poetry]
 name = "parsed"
 version = "0.1.0"
-description = ""
-authors = ["Zapps <francesco.zappacosta96@gmail.com>"]
+description = "Mail specific parsing library"
+authors = ["Zappa francesco.zappacosta96@gmail.com"]
+license = ""
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+pydantic = "^2.7.2"
 
 
 [build-system]

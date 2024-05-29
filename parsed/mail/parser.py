@@ -30,6 +30,7 @@ def get_body(mail: Union[MailObject, BodyParts], tipe: ...):
     except Exception as e:
         print(str(e))
 
+
 def transform_address(address: str):
     address = parseaddr(address)
     return EmailAddress(
