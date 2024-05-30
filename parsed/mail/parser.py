@@ -1,18 +1,49 @@
-from email import message_from_bytes
+from email import message_from_bytes, message_from_string
 from email.header import decode_header
 from email.message import Message, EmailMessage
 from email.policy import default
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Union, List
-
-from .model import MailObject, BodyParts, EmailAddress, Header, File, MailFile, Body
+from parsed.mail import MailObject, BodyParts, EmailAddress, Header, File, MailFile, Body
 from .exceptions import ParseError
-
 from parsed.enums import FileExtension
-from parsed.utils import flatten_attachment
+from parsed.utils import unzip_attachments, extract_p7m
 
 
-def get_body(mail: Union[MailObject, BodyParts], tipe: ...):
+def flatten_attachment(
+        attachment: Union[File, list]
+) -> Union[File, List[File]]:
+    if isinstance(attachment, list):
+        return [
+            flatten_attachment(att)
+            for att in attachment
+        ]
+    match attachment.extension:
+        case FileExtension.XML.value:
+            content = attachment.content
+            if isinstance(content, bytes):
+                attachment.content = content.decode()
+            return attachment
+        case FileExtension.ZIP.value:
+            return flatten_attachment(
+                unzip_attachments(
+                    attachment
+                )
+            )
+        case FileExtension.P7M.value:
+            return flatten_attachment(
+                extract_p7m(
+                    attachment
+                )
+            )
+        case _:
+            return attachment
+
+
+def get_body(
+        mail: Union[MailObject, BodyParts],
+        tipe: str = "text/plain"
+):
     try:
         if isinstance(mail, MailObject):
             for elem in mail.body.content:
@@ -31,7 +62,9 @@ def get_body(mail: Union[MailObject, BodyParts], tipe: ...):
         print(str(e))
 
 
-def transform_address(address: str):
+def transform_address(
+        address: str
+):
     address = parseaddr(address)
     return EmailAddress(
         nickname=address[0],
@@ -39,7 +72,9 @@ def transform_address(address: str):
     )
 
 
-def get_email_address(target: str):
+def get_email_address(
+        target: str
+):
     if not target:
         return
     target = target.strip()
@@ -51,8 +86,17 @@ def get_email_address(target: str):
     return addresses
 
 
-def parse_mail_byte(mail_byte: bytes):
+def parse_mail_byte(
+        mail_byte: bytes
+):
     mime = message_from_bytes(mail_byte, policy=default)
+    return mime2Model(mime)
+
+
+def parse_mail_string(
+        mail_string: str
+):
+    mime = message_from_string(mail_string, policy=default)
     return mime2Model(mime)
 
 
@@ -97,14 +141,17 @@ def get_subject(
 def get_date(
         mime: Union[Message, EmailMessage]
 ):
-    date = mime.get("date") or mime.get("Date")
+    date = mime.get(
+        "date",
+        mime.get("Date")
+    )
     if date:
         return parsedate_to_datetime(date)
-    else:
-        return ""
 
 
-def parse_mail_header(mime: Union[Message, EmailMessage]):
+def parse_mail_header(
+        mime: Union[Message, EmailMessage]
+):
     try:
         sender = get_address(
             mime.get("From")
@@ -157,21 +204,32 @@ def mime2dict(
         return mime_dict
 
 
-def get_attachment_and_body_parts(mime):
+def get_attachment_and_body_parts(
+        mime
+):
     content, attachments = [], []
-    for part in mime.iter_parts():
-        part = mime2Model(part)
-        if isinstance(part, BodyParts):
-            content.append(part)
-        elif isinstance(part, (File, MailFile)):
-            attachments.append(part)
-        elif isinstance(part, list):
-            attachments.extend(part)
 
+    if mime.is_multipart():
+        for part in mime.iter_parts():
+            part = mime2Model(part)
+            if isinstance(part, BodyParts):
+                content.append(part)
+            elif isinstance(part, (File, MailFile)):
+                attachments.append(part)
+            elif isinstance(part, list):
+                attachments.extend(part)
+    else:
+        content.append( BodyParts(
+            content = mime.get_content(),
+            content_type = mime.get_content_type()
+        )
+        )
     return content, attachments
 
 
-def get_mail_obj(mime: Union[EmailMessage, Message]):
+def get_mail_obj(
+        mime: Union[EmailMessage, Message]
+):
     header = parse_mail_header(mime)
     content, attachments = get_attachment_and_body_parts(mime)
     # vedere se questa è una mail

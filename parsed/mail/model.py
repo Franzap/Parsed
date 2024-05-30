@@ -28,6 +28,8 @@ from typing import Optional, Union, List
 from pydantic import BaseModel, computed_field
 from os.path import splitext as os_split_extension
 
+from parsed.enums import FileExtension
+
 
 class File(BaseModel):
     filename: str
@@ -49,6 +51,14 @@ class Body(BaseModel):
     content: List[BodyParts]
     attachments: Optional[List[Union[File, 'MailFile']]] = None
 
+    def attachments_of_extension(self, extension: str) -> Optional[List['MailFile']]:
+        if self.attachments:
+            return list(filter(lambda attachment: attachment.extension == extension, self.attachments))
+        return []
+
+    def mails(self):
+        return self.attachments_of_extension(FileExtension.MAIL.value)
+
 
 class EmailAddress(BaseModel):
     nickname: Optional[str] = None
@@ -69,6 +79,7 @@ class Header(BaseModel):
 class MailObject(BaseModel):
     header: Header
     body: Body
+    thread_id: Optional[Union[str, int]] = None
 
     def __lt__(self, other):
         return self.header.Received < other.header.Received
@@ -97,6 +108,7 @@ class MailFile(File, BaseModel):
             super().__init__(**kwargs)
         else:
             super().__init__(**file.dict(), **kwargs)
+
 
 BodyParts.update_forward_refs()
 Body.update_forward_refs()

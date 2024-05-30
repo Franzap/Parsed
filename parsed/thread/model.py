@@ -1,15 +1,17 @@
-from typing import Union, List
-
+from typing import Union, List, Optional
 from pydantic import BaseModel
-
 from parsed.mail.model import MailObject, MailFile
 
 
 class MailThread(BaseModel):
     thread: List[Union[MailObject, MailFile]] = []
     ordered: bool = False
+    id: Optional[Union[str, int]] = None
 
-    def sort(self, reverse: bool = False):
+    def sort(
+            self,
+            reverse: bool = False
+    ):
         self.thread.sort(
             reverse=reverse
         )
@@ -18,7 +20,7 @@ class MailThread(BaseModel):
     def __len__(self):
         return len(self.thread)
 
-    def add_mail(self, mail: Union[List[MailObject], MailObject,MailFile]):
+    def add_mail(self, mail: Union[List[MailObject], MailObject, MailFile]):
         if isinstance(mail, list):
             self.thread.extend(mail)
         else:

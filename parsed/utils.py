@@ -1,11 +1,9 @@
 import subprocess
 from tempfile import NamedTemporaryFile
-from typing import List, Union, Optional
 from zipfile import ZipFile
 import io
 import os
 from os.path import splitext as os_split_extension
-from parsed.enums import FileExtension
 from parsed.mail.model import File
 from datetime import datetime
 
@@ -45,55 +43,6 @@ def unzip_attachments(
             )
             os.remove(extraction_path)
     return attachments
-
-
-def flatten_attachment(
-        attachment: Union[File, list]
-) -> Union[File, List[File]]:
-    if isinstance(attachment, list):
-        return [
-            flatten_attachment(att)
-            for att in attachment
-        ]
-    match attachment.extension:
-        case FileExtension.XML.value:
-            content = attachment.content
-            if isinstance(content, bytes):
-                attachment.content = content.decode()
-            return attachment
-        case FileExtension.ZIP.value:
-            return flatten_attachment(
-                unzip_attachments(
-                    attachment
-                )
-            )
-        case FileExtension.P7M.value:
-            return flatten_attachment(
-                extract_p7m(
-                    attachment
-                )
-            )
-        case _:
-            return attachment
-
-
-def substring_from_guardians(
-        first: Optional[str],
-        second: Optional[str],
-        string: str
-):
-    if first is not None:
-        first_index = string.find(first)
-        if first_index == -1:
-            return None
-        string = string[first_index + (len(first)):]
-    if second is None:
-        return string
-    second_index = string.find(second)
-    if second_index == -1:
-        return None
-    return string[:second_index]
-
 
 
 weekday = {
