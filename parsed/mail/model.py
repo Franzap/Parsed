@@ -26,8 +26,7 @@ THREAD: OGGETTO ESTERNO CHE CONTIENE TUTTE LE MAIL CHE FANNO PARTE DI UN DETERMI
 from datetime import datetime
 from typing import Optional, Union, List
 from pydantic import BaseModel, computed_field
-from os.path import splitext as os_split_extension
-
+from os.path import splitext
 from parsed.enums import FileExtension
 
 
@@ -39,11 +38,11 @@ class File(BaseModel):
     @computed_field
     @property
     def extension(self) -> str:
-        return os_split_extension(self.filename)[-1].lower()
+        return splitext(self.filename)[-1].lower()
 
 
 class BodyParts(BaseModel):
-    content: Optional[Union[List[Union['BodyParts', File, str]], str, bytes]] = None
+    content: Union[List[Union['BodyParts', File, str]], str, bytes]
     content_type: Optional[str] = None
 
 
@@ -51,13 +50,17 @@ class Body(BaseModel):
     content: List[BodyParts]
     attachments: Optional[List[Union[File, 'MailFile']]] = None
 
-    def attachments_of_extension(self, extension: str) -> Optional[List['MailFile']]:
+    def attachments_of_extension(self, extension: str) ->List['MailFile']:
         if self.attachments:
             return list(filter(lambda attachment: attachment.extension == extension, self.attachments))
         return []
 
-    def mails(self):
-        return self.attachments_of_extension(FileExtension.MAIL.value)
+    def mails(self, convert: bool = True) -> Union[List['MailObject'], List['MailFile']]:
+        mails = self.attachments_of_extension(FileExtension.MAIL.value)
+        if mails:
+            if convert:
+                return list(map(lambda mail: mail.mail_obj, mails))
+        return mails
 
 
 class EmailAddress(BaseModel):

@@ -10,6 +10,20 @@ from parsed.enums import FileExtension
 from parsed.utils import unzip_attachments, extract_p7m
 
 
+def parse_mail_byte(
+        mail_byte: bytes
+):
+    mime = message_from_bytes(mail_byte, policy=default)
+    return mime2Model(mime)
+
+
+def parse_mail_string(
+        mail_string: str
+):
+    mime = message_from_string(mail_string, policy=default)
+    return mime2Model(mime)
+
+
 def flatten_attachment(
         attachment: Union[File, list]
 ) -> Union[File, List[File]]:
@@ -84,20 +98,6 @@ def get_email_address(
     if len(addresses) == 1:
         return addresses[0]
     return addresses
-
-
-def parse_mail_byte(
-        mail_byte: bytes
-):
-    mime = message_from_bytes(mail_byte, policy=default)
-    return mime2Model(mime)
-
-
-def parse_mail_string(
-        mail_string: str
-):
-    mime = message_from_string(mail_string, policy=default)
-    return mime2Model(mime)
 
 
 def get_address(
@@ -182,28 +182,6 @@ def parse_mail_header(
         raise ParseError(str(e))
 
 
-def mime2dict(
-        mime: Union[EmailMessage, Message]
-):
-    mime_dict = dict(mime)
-    if mime.is_multipart():
-        intern = []
-        for part in mime.iter_parts():
-            intern.append(mime2dict(part))
-        mime_dict.update(
-            intern=intern
-        )
-        return mime_dict
-    else:
-        # attachment, testo
-        mime_dict.update(
-            dict(
-                content=mime.get_content()
-            )
-        )
-        return mime_dict
-
-
 def get_attachment_and_body_parts(
         mime
 ):
@@ -219,9 +197,9 @@ def get_attachment_and_body_parts(
             elif isinstance(part, list):
                 attachments.extend(part)
     else:
-        content.append( BodyParts(
-            content = mime.get_content(),
-            content_type = mime.get_content_type()
+        content.append(BodyParts(
+            content=mime.get_content(),
+            content_type=mime.get_content_type()
         )
         )
     return content, attachments

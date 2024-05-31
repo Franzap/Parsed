@@ -3,8 +3,8 @@ from .enums import MailLangBounds
 from .model import MailThread
 from parsed.mail import MailObject, Body, BodyParts, Header, MailFile
 from parsed.mail.parser import get_body, get_email_address
-from parsed.utils import strp_ita_string, replace_datetime_piece
-import pendulum
+from parsed.utils import strp_ita_string
+
 
 def substring_from_guardians(
         first: Optional[str],
@@ -128,22 +128,19 @@ def create_thread_from_mail(
         mail: MailObject
 ) -> Optional[MailThread]:
     mail_thread = MailThread()
-    mails = [mail]
-    if mail.body.attachments:
-        mails.extend(
-            list(map(lambda file: file.mail_obj if isinstance(file, MailFile) else None, mail.body.attachments)))
+    mails = mail.body.mails()
+    mails.append(mail)
 
     for mail in mails:
-        if mail:
-            mail_thread.add_mail(mail)
-            text: str = get_body(mail, "text/plain")
-            try:
-                thread = create_thread_from_text(text)
-            except Exception as e:
-                print(e)
-                thread = None
-            if thread:
-                mail_thread.add_mail(thread.thread)
+        mail_thread.add_mail(mail)
+        text: str = get_body(mail, "text/plain")
+        try:
+            thread = create_thread_from_text(text)
+        except Exception as e:
+            print(e)
+            thread = None
+        if thread:
+            mail_thread.add_mails(thread.thread)
 
     return mail_thread
 
