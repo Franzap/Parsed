@@ -1,26 +1,60 @@
 from email import message_from_bytes, message_from_string
+from email.errors import HeaderDefect
 from email.header import decode_header
 from email.message import Message, EmailMessage
-from email.policy import default
+from email.policy import default, EmailPolicy
 from email.utils import parseaddr, parsedate_to_datetime
-from typing import Union, List
+from typing import Union, List, Optional
 from parsed.mail import MailObject, BodyParts, EmailAddress, Header, File, MailFile, Body
 from .exceptions import ParseError
 from parsed.enums import FileExtension
 from parsed.utils import unzip_attachments, extract_p7m
 
 
+def mime_content(
+        mime: Union[Message, EmailMessage]
+) -> Optional[Union[EmailMessage, Message, str, bytes]]:
+    try:
+        return mime.get_content()
+    except KeyError:
+        return mime.get_payload(decode=True)
+
+
 def parse_mail_byte(
-        mail_byte: bytes
-):
-    mime = message_from_bytes(mail_byte, policy=default)
+        mail_byte: bytes,
+        policy: EmailPolicy = default
+) -> Optional[MailObject]:
+    """
+        Parse a mime mail byte and return a MailObject
+        :param mail_byte: the mail byte to parse
+        :param policy: an email policy
+        :return: a MailObject or None
+
+        The policy keyword specifies a policy object that controls a number of
+        aspects of the parser's operation.  The default policy maintains
+        backward compatibility.
+
+    """
+    mime = message_from_bytes(mail_byte, policy=policy)
     return mime2Model(mime)
 
 
 def parse_mail_string(
-        mail_string: str
-):
-    mime = message_from_string(mail_string, policy=default)
+        mail_string: str,
+        policy: EmailPolicy = default
+) -> Optional[MailObject]:
+    """
+           Parse a mime mail byte and return a MailObject
+           :param mail_string: the mail byte to parse
+           :param policy: an email policy
+           :return: a MailObject or None
+
+           The policy keyword specifies a policy object that controls a number of
+           aspects of the parser's operation.  The default policy maintains
+           backward compatibility.
+
+       """
+    mime = message_from_string(mail_string, policy=policy)
     return mime2Model(mime)
 
 
@@ -28,10 +62,7 @@ def flatten_attachment(
         attachment: Union[File, list]
 ) -> Union[File, List[File]]:
     if isinstance(attachment, list):
-        return [
-            flatten_attachment(att)
-            for att in attachment
-        ]
+        return list(map(flatten_attachment, attachment))
     match attachment.extension:
         case FileExtension.XML.value:
             content = attachment.content
@@ -57,23 +88,20 @@ def flatten_attachment(
 def get_body(
         mail: Union[MailObject, BodyParts],
         tipe: str = "text/plain"
-):
-    try:
-        if isinstance(mail, MailObject):
-            for elem in mail.body.content:
-                if isinstance(elem, BodyParts):
-                    return get_body(elem, tipe)
+) -> Union[bytes, str]:
+    if isinstance(mail, MailObject):
+        for elem in mail.body.content:
+            if isinstance(elem, BodyParts):
+                return get_body(elem, tipe)
+    else:
+        if isinstance(mail.content, list):
+            for elem in mail.content:
+                return get_body(elem, tipe)
         else:
-            if isinstance(mail.content, list):
-                for elem in mail.content:
-                    return get_body(elem, tipe)
+            if mail.content_type == tipe:
+                return mail.content
             else:
-                if mail.content_type == tipe:
-                    return mail.content
-                else:
-                    return get_body(mail, tipe)
-    except Exception as e:
-        print(str(e))
+                return get_body(mail, tipe)
 
 
 def transform_address(
@@ -122,20 +150,17 @@ def get_address(
 def get_subject(
         subject_header
 ) -> str:
-    try:
-        subject = ""
-        if subject_header:
-            # tupla byte, econding
-            encoded_tuple = decode_header(subject_header)[0]
-            byte_subject = encoded_tuple[0]
-            encoding = encoded_tuple[1]
-            if encoding:
-                subject = byte_subject.decode(encoding)
-            else:
-                subject = str(byte_subject)
-        return subject
-    except Exception as e:
-        raise e
+    subject = ""
+    if subject_header:
+        # tupla byte, econding
+        encoded_tuple = decode_header(subject_header)[0]
+        byte_subject = encoded_tuple[0]
+        encoding = encoded_tuple[1]
+        if encoding:
+            subject = byte_subject.decode(encoding)
+        else:
+            subject = str(byte_subject)
+    return subject
 
 
 def get_date(
@@ -152,41 +177,43 @@ def get_date(
 def parse_mail_header(
         mime: Union[Message, EmailMessage]
 ):
-    try:
-        sender = get_address(
-            mime.get("From")
-        )
-        if not sender:
-            raise Exception
-        receivers = get_address(
-            mime.get("To")
-        )
-        cc = get_address(
-            mime.get("Cc")
-        )
-        subject = get_subject(
-            mime.get("Subject")
-        )
-        received = get_date(
-            mime
-        )
+    sender = get_address(
+        mime.get("From")
+    )
+    if not sender:
+        raise HeaderDefect
 
-        return Header(
-            From=sender,
-            To=receivers,
-            Cc=cc,
-            Subject=subject,
-            Received=received
-        )
-    except Exception as e:
-        raise ParseError(str(e))
+    receivers = get_address(
+        mime.get("To")
+    )
+    if not receivers:
+        raise HeaderDefect
+
+    cc = get_address(
+        mime.get("Cc")
+    )
+
+    subject = get_subject(
+        mime.get("Subject")
+    )
+
+    received = get_date(
+        mime
+    )
+
+    return Header(
+        From=sender,
+        To=receivers,
+        Cc=cc,
+        Subject=subject,
+        Received=received
+    )
 
 
 def get_attachment_and_body_parts(
         mime
 ):
     content, attachments = [], []
-
     if mime.is_multipart():
         for part in mime.iter_parts():
             part = mime2Model(part)
@@ -197,10 +224,11 @@ def get_attachment_and_body_parts(
             elif isinstance(part, list):
                 attachments.extend(part)
     else:
-        content.append(BodyParts(
-            content=mime.get_content(),
-            content_type=mime.get_content_type()
-        )
+        content.append(
+            BodyParts(
+                content=mime.get_content(),
+                content_type=mime.get_content_type()
+            )
         )
     return content, attachments
 
@@ -243,17 +271,17 @@ def get_mail(
         return get_mail_obj(mime)
     except ParseError:
         return
-    except Exception as e:
-        raise e
+    except Exception:
+        return
 
 
 def mime2Model(
         mime: Union[EmailMessage, Message]
-):
+) -> Optional[Union[MailObject, BodyParts]]:
     obj = get_mail(mime)
     if obj:
         return obj
-    elif mime.is_multipart() and not obj:
+    if mime.is_multipart() and not obj:
         return BodyParts(
             content=[
                 mime2Model(part)
@@ -261,28 +289,23 @@ def mime2Model(
             ],
             content_type=mime.get_content_type()
         )
-    else:
-        filename = mime.get_filename("")
-        try:
-            content = mime.get_content()
-        except KeyError:
-            content = mime.get_payload(decode=True)
-
-        if mime.get_content_disposition() == "attachment" or filename:
-            obj = flatten_attachment(
-                File(
-                    filename=filename,
-                    content=content,
-                    encoding=mime.get("Content-Transfer-Encoding")
-                )
-            )
-            if isinstance(obj, list):
-                for i, attachment in enumerate(obj):
-                    if attachment.extension == FileExtension.MAIL.value:
-                        obj[i] = parse_mail_byte(attachment.content)
-        else:
-            obj = BodyParts(
+    filename = mime.get_filename("")
+    content = mime_content(mime)
+    if mime.get_content_disposition() == "attachment" or filename:
+        obj = flatten_attachment(
+            File(
+                filename=filename,
                 content=content,
-                content_type=mime.get_content_type()
+                encoding=mime.get("Content-Transfer-Encoding")
             )
-        return obj
+        )
+        if isinstance(obj, list):
+            for i, attachment in enumerate(obj):
+                if attachment.extension == FileExtension.MAIL.value:
+                    obj[i] = parse_mail_byte(attachment.content)
+    else:
+        obj = BodyParts(
+            content=content,
+            content_type=mime.get_content_type()
+        )
+    return obj

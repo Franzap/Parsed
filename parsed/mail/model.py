@@ -1,8 +1,4 @@
 """
-# body
-# the body of a mail can be a multipart or a simple text
-# and in the body of a mail are present attachment of it too
-
 MAIL
 
 ######### HEADER DELLA MAIL
@@ -50,7 +46,7 @@ class Body(BaseModel):
     content: List[BodyParts]
     attachments: Optional[List[Union[File, 'MailFile']]] = None
 
-    def attachments_of_extension(self, extension: str) ->List['MailFile']:
+    def attachments_of_extension(self, extension: str) -> List['MailFile']:
         if self.attachments:
             return list(filter(lambda attachment: attachment.extension == extension, self.attachments))
         return []
@@ -64,7 +60,7 @@ class Body(BaseModel):
 
 
 class EmailAddress(BaseModel):
-    nickname: Optional[str] = None
+    name: Optional[str] = None
     address: str
 
     def __str__(self):

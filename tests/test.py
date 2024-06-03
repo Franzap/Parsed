@@ -1,7 +1,7 @@
 import os
 from parsed.enums import FileExtension
 from parsed.mail.parser import parse_mail_byte
-from parsed.thread.parser import create_thread_from_mail
+from parsed.thread import thread_from_mail
 
 if __name__ == '__main__':
     archive = "../resources/esempi_mail_full"
@@ -13,4 +13,4 @@ if __name__ == '__main__':
                     byte = eml.read()
                 mail = parse_mail_byte(byte)
                 dic = mail.dict()
-                mail_thread = create_thread_from_mail(mail)
+                mail_thread = thread_from_mail(mail)

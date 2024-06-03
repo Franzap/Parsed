@@ -1,8 +1,8 @@
 from .model import MailThread
-from .parser import create_thread_from_mail, create_thread_from_text, create_mail_from_text
+from .parser import thread_from_mail, thread_from_string, mail_from_string
 __all__ = [
     'MailThread',
-    'create_thread_from_mail',
-    'create_thread_from_text',
-    'create_mail_from_text'
+    'thread_from_string',
+    'thread_from_mail',
+    'mail_from_string'
 ]
