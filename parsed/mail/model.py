@@ -19,12 +19,13 @@ THREAD_ID:
     this means that every mail in thread will have the same ID
 
 """
-
 from datetime import datetime
 from typing import Optional, Union, List
+
 from pydantic import BaseModel
+
 from parsed.enums import FileExtension
-from parsed.file.model import File
+from parsed.file.model import File, ParsableFile
 
 
 class BodyParts(BaseModel):
@@ -48,7 +49,7 @@ class Body(BaseModel):
         mails = self.attachments_of_extension(FileExtension.MAIL.value)
         if mails:
             if convert:
-                return list(map(lambda mail: mail.mail_obj, mails))
+                return list(map(lambda mail: mail.parsed_obj, mails))
         return mails
 
 
@@ -92,8 +93,8 @@ class MailObject(BaseModel):
         return self.header.Received != other.header.Received
 
 
-class MailFile(File, BaseModel):
-    mail_obj: MailObject
+class MailFile(ParsableFile):
+    parsed_obj: MailObject
 
     def __init__(self, file: Optional[File] = None, **kwargs) -> None:
         if file is None:

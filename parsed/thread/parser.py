@@ -1,9 +1,10 @@
 from typing import Optional, List
-from .enums import MailLangBounds
-from .model import MailThread
+
 from parsed.mail import MailObject, Body, BodyParts, Header
 from parsed.mail.parser import get_body, get_email_address
 from parsed.utils import strp_ita_string
+from .enums import MailLangBounds
+from .model import MailThread
 
 
 def substring_from_guardians(

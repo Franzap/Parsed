@@ -5,16 +5,18 @@ from email.message import Message, EmailMessage
 from email.policy import default, EmailPolicy
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Union, List, Optional
-from parsed.mail.model import MailObject, BodyParts, EmailAddress, Header, MailFile, Body
+
+from parsed.enums import FileExtension
 from parsed.file.model import File
 from parsed.mail.exceptions import ParseError
-from parsed.enums import FileExtension
+from parsed.mail.model import MailObject, BodyParts, EmailAddress, Header, MailFile, Body
 from parsed.utils import unzip_attachments, extract_p7m
 
 
 def parse_mail_byte(
         mail_byte: bytes,
-        policy: EmailPolicy = default
+        policy: EmailPolicy = default,
+        **kwargs
 ) -> Optional[MailObject]:
     """
         Parse a mime mail byte and return a MailObject
@@ -27,13 +29,14 @@ def parse_mail_byte(
         backward compatibility.
 
     """
-    mime = message_from_bytes(mail_byte, policy=policy)
-    return mime2Model(mime)
+    mime = message_from_bytes(mail_byte, policy=policy, **kwargs)
+    return mime2Model(mime, **kwargs)
 
 
 def parse_mail_string(
         mail_string: str,
-        policy: EmailPolicy = default
+        policy: EmailPolicy = default,
+        **kwargs
 ) -> Optional[MailObject]:
     """
         Parse a mime mail byte and return a MailObject
@@ -46,8 +49,8 @@ def parse_mail_string(
         backward compatibility.
 
     """
-    mime = message_from_string(mail_string, policy=policy)
-    return mime2Model(mime)
+    mime = message_from_string(mail_string, policy=policy, **kwargs)
+    return mime2Model(mime, **kwargs)
 
 
 def flatten_attachment(
@@ -245,13 +248,13 @@ def get_mail(
     try:
         filename = mime.get_filename(failobj="")
         if "eml" in filename or mime.get_content_type() == "message/rfc822":
-            if mime.get_content_disposition() == "attachment":
+            if mime.is_attachment():
                 mime = mime.get_payload(0)
             mail_obj = get_mail_obj(mime)
             return MailFile(
                 filename=filename or "email.eml",
                 content=mime.as_bytes(),
-                mail_obj=mail_obj,
+                parsed_obj=mail_obj,
                 encoding=mime.get("Content-Transfer-encoding")
             )
         return get_mail_obj(mime)
@@ -273,7 +276,8 @@ def mime_content(
 
 
 def mime2Model(
-        mime: Union[EmailMessage, Message]
+        mime: Union[EmailMessage, Message],
+        parse_attachment: bool = True
 ) -> Optional[Union[list, MailObject, BodyParts]]:
     obj = get_mail(mime)
     if obj:
@@ -286,9 +290,9 @@ def mime2Model(
             ],
             content_type=mime.get_content_type()
         )
-    filename = mime.get_filename("")
+    filename = mime.get_filename(failobj="")
     content = mime_content(mime)
-    if mime.get_content_disposition() == "attachment" or filename:
+    if mime.is_attachment() or filename:
         obj = flatten_attachment(
             File(
                 filename=filename,
@@ -296,7 +300,7 @@ def mime2Model(
                 encoding=mime.get("Content-Transfer-Encoding")
             )
         )
-        if isinstance(obj, list):
+        if parse_attachment and isinstance(obj, list):
             for i, attachment in enumerate(obj):
                 if attachment.extension == FileExtension.MAIL.value:
                     obj[i] = parse_mail_byte(attachment.content)

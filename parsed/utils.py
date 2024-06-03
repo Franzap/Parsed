@@ -1,11 +1,12 @@
-import subprocess
-from tempfile import NamedTemporaryFile
-from zipfile import ZipFile
 import io
 import os
-from os.path import splitext as os_split_extension
-from parsed.file.model import File
+import subprocess
 from datetime import datetime
+from os.path import splitext as os_split_extension
+from tempfile import NamedTemporaryFile
+from zipfile import ZipFile
+
+from parsed.file.model import File
 
 
 def extract_p7m(

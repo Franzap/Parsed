@@ -1,4 +1,5 @@
 import os
+
 from parsed.enums import FileExtension
 from parsed.mail.parser import parse_mail_byte
 from parsed.thread import thread_from_mail

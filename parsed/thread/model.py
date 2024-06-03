@@ -1,5 +1,7 @@
 from typing import Union, List, Optional
+
 from pydantic import BaseModel
+
 from parsed.mail import MailObject, MailFile
 
 
