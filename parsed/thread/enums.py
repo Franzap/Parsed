@@ -1,7 +1,8 @@
 from enum import Enum
 
+# TODO WE SHOULD CONFIGURE THE ENUM FOR KEYWORD IN A MAIL MESSAGE
+
 """
-    # TODO WE SHOULD CONFIGURE THE ENUM FOR KEYWORD IN A MAIL MESSAGE
     From: ...
     Sent: ...
     To: ...

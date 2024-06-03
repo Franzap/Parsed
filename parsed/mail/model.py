@@ -1,40 +1,30 @@
 """
 MAIL
 
-######### HEADER DELLA MAIL
+# HEADER DELLA MAIL
     FROM: PERSONA CHE INVIA LA MAIL **LA MAIL PROVIENE DA UNA E UNA SOLA PERSONA **
     TO: LISTA DI PERSONE CHE PUO RICEVERE O MENO LA MAIL INVIATA
-    CC: LISTA DI PERSONE CHE PUÒ ESSERE IN CC ALLA MAIL INVIATA
+     CC: LISTA DI PERSONE CHE PUÒ ESSERE IN CC ALLA MAIL INVIATA
     SUBJECT: SOGGETTO DELLA MAIL
     RECEIVED: DATETIME CHE RAPPRESENTA QUANDO L'EMAIL È RICEVUTA
 
-######### BODY DELLA MAIL
+# BODY DELLA MAIL
 
 BODY: TESTUALE CON IMMAGINI INLINE (SCELTA TRA INCLUDERE O MENO LE IMMAGINI)
 
 ATTACHMENTS: SONO ALLEGATI DELLA MAIL, CHE POSSONO VARIARE TRA MAIL, ZIP, FILE CRIPTATI ECC
 
-OPTIONAL
+THREAD_ID:
+    if a mail is part of a thread of mails, then thread_id will be set equals to the id of thread
+    this means that every mail in thread will have the same ID
 
-THREAD: OGGETTO ESTERNO CHE CONTIENE TUTTE LE MAIL CHE FANNO PARTE DI UN DETERMINATO THREAD
 """
 
 from datetime import datetime
 from typing import Optional, Union, List
-from pydantic import BaseModel, computed_field
-from os.path import splitext
+from pydantic import BaseModel
 from parsed.enums import FileExtension
-
-
-class File(BaseModel):
-    filename: str
-    content: Optional[Union[str, bytes]] = None
-    encoding: Optional[str] = None
-
-    @computed_field
-    @property
-    def extension(self) -> str:
-        return splitext(self.filename)[-1].lower()
+from parsed.file.model import File
 
 
 class BodyParts(BaseModel):
@@ -51,7 +41,10 @@ class Body(BaseModel):
             return list(filter(lambda attachment: attachment.extension == extension, self.attachments))
         return []
 
-    def mails(self, convert: bool = True) -> Union[List['MailObject'], List['MailFile']]:
+    def mails(
+            self,
+            convert: bool = True
+    ) -> Union[List['MailObject'], List['MailFile']]:
         mails = self.attachments_of_extension(FileExtension.MAIL.value)
         if mails:
             if convert:

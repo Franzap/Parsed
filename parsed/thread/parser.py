@@ -117,10 +117,10 @@ def thread_from_string(
         :param mail_text: text of the mail
         :return: MailThread object or None if text does not contain thread information
     """
-    splitted_text = split_thread_text(mail_text)
-    if splitted_text:
+    split_text = split_thread_text(mail_text)
+    if split_text:
         thread = MailThread()
-        for str_token in splitted_text:
+        for str_token in split_text:
             if str_token != "":
                 mail = mail_from_string(str_token)
                 if mail is not None:

@@ -5,19 +5,11 @@ from email.message import Message, EmailMessage
 from email.policy import default, EmailPolicy
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Union, List, Optional
-from parsed.mail import MailObject, BodyParts, EmailAddress, Header, File, MailFile, Body
-from .exceptions import ParseError
+from parsed.mail.model import MailObject, BodyParts, EmailAddress, Header, MailFile, Body
+from parsed.file.model import File
+from parsed.mail.exceptions import ParseError
 from parsed.enums import FileExtension
 from parsed.utils import unzip_attachments, extract_p7m
-
-
-def mime_content(
-        mime: Union[Message, EmailMessage]
-) -> Optional[Union[EmailMessage, Message, str, bytes]]:
-    try:
-        return mime.get_content()
-    except KeyError:
-        return mime.get_payload(decode=True)
 
 
 def parse_mail_byte(
@@ -44,16 +36,16 @@ def parse_mail_string(
         policy: EmailPolicy = default
 ) -> Optional[MailObject]:
     """
-           Parse a mime mail byte and return a MailObject
-           :param mail_string: the mail byte to parse
-           :param policy: an email policy
-           :return: a MailObject or None
+        Parse a mime mail byte and return a MailObject
+        :param mail_string: the mail byte to parse
+        :param policy: an email policy
+        :return: a MailObject or None
 
-           The policy keyword specifies a policy object that controls a number of
-           aspects of the parser's operation.  The default policy maintains
-           backward compatibility.
+        The policy keyword specifies a policy object that controls a number of
+        aspects of the parser's operation.  The default policy maintains
+        backward compatibility.
 
-       """
+    """
     mime = message_from_string(mail_string, policy=policy)
     return mime2Model(mime)
 
@@ -152,7 +144,6 @@ def get_subject(
 ) -> str:
     subject = ""
     if subject_header:
-        # tupla byte, econding
         encoded_tuple = decode_header(subject_header)[0]
         byte_subject = encoded_tuple[0]
         encoding = encoded_tuple[1]
@@ -215,7 +206,7 @@ def get_attachment_and_body_parts(
 ):
     content, attachments = [], []
     if mime.is_multipart():
-        for part in mime.iter_parts():
+        for part in mime.get_payload():
             part = mime2Model(part)
             if isinstance(part, BodyParts):
                 content.append(part)
@@ -238,29 +229,24 @@ def get_mail_obj(
 ):
     header = parse_mail_header(mime)
     content, attachments = get_attachment_and_body_parts(mime)
-    # vedere se questa è una mail
-    obj = MailObject(
-        header=header,
-        body=Body(
-            content=content,
-            attachments=attachments
-        )
+    body = Body(
+        content=content,
+        attachments=attachments
     )
-    return obj
+    return MailObject(
+        header=header,
+        body=body
+    )
 
 
 def get_mail(
         mime: Union[EmailMessage, Message]
-):
+) -> Optional[Union[MailObject, MailFile]]:
     try:
         filename = mime.get_filename(failobj="")
         if "eml" in filename or mime.get_content_type() == "message/rfc822":
             if mime.get_content_disposition() == "attachment":
-                mail_byte = mime.get_content()
-                if isinstance(mail_byte, bytes):
-                    mime = message_from_bytes(mail_byte, policy=default)
-                else:
-                    mime = mail_byte
+                mime = mime.get_payload(0)
             mail_obj = get_mail_obj(mime)
             return MailFile(
                 filename=filename or "email.eml",
@@ -275,9 +261,20 @@ def get_mail(
         return
 
 
+def mime_content(
+        mime: Union[Message, EmailMessage],
+        decode=True,
+        **kwargs
+) -> Optional[Union[EmailMessage, Message, str, bytes]]:
+    try:
+        return mime.get_content(**kwargs)
+    except KeyError:
+        return mime.get_payload(decode=decode, **kwargs)
+
+
 def mime2Model(
         mime: Union[EmailMessage, Message]
-) -> Optional[Union[MailObject, BodyParts]]:
+) -> Optional[Union[list, MailObject, BodyParts]]:
     obj = get_mail(mime)
     if obj:
         return obj
@@ -285,7 +282,7 @@ def mime2Model(
         return BodyParts(
             content=[
                 mime2Model(part)
-                for part in mime.iter_parts()
+                for part in mime.get_payload()
             ],
             content_type=mime.get_content_type()
         )

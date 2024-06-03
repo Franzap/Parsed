@@ -4,6 +4,9 @@ from parsed.mail import MailObject, MailFile
 
 
 class MailThread(BaseModel):
+    """
+        Represents a mail thread
+    """
     thread: List[Union[MailObject, MailFile]] = []
     ordered: bool = False
     id: Optional[Union[str, int]] = None

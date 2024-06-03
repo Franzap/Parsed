@@ -1,7 +1,7 @@
-from .model import File, Body, BodyParts, Header, MailFile, MailObject, EmailAddress
+from .model import Body, BodyParts, Header, MailFile, MailObject, EmailAddress
+from ..file.model import File
 
 __all__ = [
-    "File",
     "Body",
     "BodyParts",
     "Header",
