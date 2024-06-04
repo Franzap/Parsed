@@ -1,10 +1,10 @@
 from email import message_from_bytes, message_from_string
-from email.errors import HeaderDefect
+from .exceptions import HeaderDefect
 from email.header import decode_header
 from email.message import Message, EmailMessage
 from email.policy import default, EmailPolicy
 from email.utils import parseaddr, parsedate_to_datetime
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Type
 
 from parsed.enums import FileExtension
 from parsed.file.model import File
@@ -30,7 +30,7 @@ def parse_mail_byte(
 
     """
     mime = message_from_bytes(mail_byte, policy=policy, **kwargs)
-    return mime2Model(mime, **kwargs)
+    return faster_mime2model(mime, **kwargs)
 
 
 def parse_mail_string(
@@ -245,23 +245,18 @@ def get_mail_obj(
 def get_mail(
         mime: Union[EmailMessage, Message]
 ) -> Optional[Union[MailObject, MailFile]]:
-    try:
-        filename = mime.get_filename(failobj="")
-        if "eml" in filename or mime.get_content_type() == "message/rfc822":
-            if mime.is_attachment():
-                mime = mime.get_payload(0)
-            mail_obj = get_mail_obj(mime)
-            return MailFile(
-                filename=filename or "email.eml",
-                content=mime.as_bytes(),
-                parsed_obj=mail_obj,
-                encoding=mime.get("Content-Transfer-encoding")
-            )
-        return get_mail_obj(mime)
-    except ParseError:
-        return
-    except Exception:
-        return
+    filename = mime.get_filename(failobj="")
+    if "eml" in filename or mime.get_content_type() == "message/rfc822":
+        if mime.is_attachment():
+            mime = mime.get_payload(0)
+        mail_obj = get_mail_obj(mime)
+        return MailFile(
+            filename=filename or "email.eml",
+            content=mime.as_bytes(),
+            parsed_obj=mail_obj,
+            encoding=mime.get("Content-Transfer-encoding")
+        )
+    return get_mail_obj(mime)
 
 
 def mime_content(
@@ -275,38 +270,104 @@ def mime_content(
         return mime.get_payload(decode=decode, **kwargs)
 
 
-def mime2Model(
-        mime: Union[EmailMessage, Message],
-        parse_attachment: bool = True
-) -> Optional[Union[list, MailObject, BodyParts]]:
-    obj = get_mail(mime)
-    if obj:
-        return obj
-    if mime.is_multipart() and not obj:
-        return BodyParts(
-            content=[
-                mime2Model(part)
-                for part in mime.get_payload()
-            ],
-            content_type=mime.get_content_type()
-        )
+def parse_multipart_mime(mime: Union[Message, EmailMessage]):
+    return BodyParts(
+        content=[
+            mime2Model(part)
+            for part in mime.get_payload()
+        ],
+        content_type=mime.get_content_type()
+    )
+
+
+def parse_attachment(
+        mime: Union[Message, EmailMessage],
+        fold_attachment: bool = True
+):
     filename = mime.get_filename(failobj="")
     content = mime_content(mime)
-    if mime.is_attachment() or filename:
-        obj = flatten_attachment(
-            File(
-                filename=filename,
-                content=content,
-                encoding=mime.get("Content-Transfer-Encoding")
-            )
-        )
-        if parse_attachment and isinstance(obj, list):
-            for i, attachment in enumerate(obj):
-                if attachment.extension == FileExtension.MAIL.value:
-                    obj[i] = parse_mail_byte(attachment.content)
-    else:
-        obj = BodyParts(
+    obj = flatten_attachment(
+        File(
+            filename=filename,
             content=content,
-            content_type=mime.get_content_type()
+            encoding=mime.get("Content-Transfer-Encoding")
         )
+    )
+    if fold_attachment and isinstance(obj, list):
+        for i, attachment in enumerate(obj):
+            if attachment.extension == FileExtension.MAIL.value:
+                obj[i] = parse_mail_byte(attachment.content)
     return obj
+
+
+def _has_surrogates(s):
+    """Return True if s contains surrogate-escaped binary data."""
+    # This check is based on the fact that unless there are surrogates, utf8
+    # (Python's default encoding) can encode any string.  This is the fastest
+    # way to check for surrogates, see issue 11454 for timings.
+    try:
+        s.encode()
+        return False
+    except UnicodeEncodeError:
+        return True
+
+
+def decode_payload(mime, payload):
+    if _has_surrogates(payload):
+        bpayload = payload.encode('ascii', 'surrogateescape')
+        try:
+            payload = bpayload.decode(mime.get_param('charset', 'ascii'), 'replace')
+        except LookupError:
+            payload = bpayload.decode('ascii', 'replace')
+    return payload
+
+
+def mime2Model(
+        mime: Union[EmailMessage, Message],
+        fold_attachment: bool = True
+) -> Optional[Union[list, MailObject, BodyParts]]:
+
+    try:
+        return get_mail(mime)
+    except ParseError:
+        obj = None
+
+    # Multipart mime that not represent a mail mime
+    if mime.is_multipart() and not obj:
+        return parse_multipart_mime(mime)
+
+        # Mime that can be either a file attachment or a body_part
+    filename = mime.get_filename(failobj="")
+    if mime.is_attachment() or filename:
+        return parse_attachment(mime, fold_attachment)
+
+        # Not multipart_mime
+    return BodyParts(
+        content=mime_content(mime),
+        content_type=mime.get_content_type()
+    )
+
+
+def faster_mime2model(mime: Union[EmailMessage, Message], fold_attachment: bool = True):
+    if mime.is_multipart():
+        try:
+            # Try to parse the mime object as a mail object,
+            # if the mime is not a mail then a HeaderDefect will be raised
+            # and caught
+            return get_mail(mime)
+
+        except ParseError:
+            # Multipart mime that not represent a mail mime
+            return parse_multipart_mime(mime)
+
+    # Not multipart_mime
+
+    # case attachment or inline file
+    if mime.is_attachment() or mime.get_filename():
+        return parse_attachment(mime, fold_attachment)
+
+    # case body_parts
+    return BodyParts(
+            content=mime_content(mime),
+            content_type=mime.get_content_type()
+    )
