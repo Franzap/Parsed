@@ -30,7 +30,7 @@ def parse_mail_byte(
 
     """
     mime = message_from_bytes(mail_byte, policy=policy, **kwargs)
-    return faster_mime2model(mime, **kwargs)
+    return mime_to_model(mime, **kwargs)
 
 
 def parse_mail_string(
@@ -50,7 +50,7 @@ def parse_mail_string(
 
     """
     mime = message_from_string(mail_string, policy=policy, **kwargs)
-    return mime2Model(mime, **kwargs)
+    return mime_to_model(mime, **kwargs)
 
 
 def flatten_attachment(
@@ -210,7 +210,7 @@ def get_attachment_and_body_parts(
     content, attachments = [], []
     if mime.is_multipart():
         for part in mime.get_payload():
-            part = mime2Model(part)
+            part = mime_to_model(part)
             if isinstance(part, BodyParts):
                 content.append(part)
             elif isinstance(part, (File, MailFile)):
@@ -248,7 +248,7 @@ def get_mail(
     filename = mime.get_filename(failobj="")
     if "eml" in filename or mime.get_content_type() == "message/rfc822":
         if mime.is_attachment():
-            mime = mime.get_payload(0)
+            mime = mime._payload[0]
         mail_obj = get_mail_obj(mime)
         return MailFile(
             filename=filename or "email.eml",
@@ -273,8 +273,8 @@ def mime_content(
 def parse_multipart_mime(mime: Union[Message, EmailMessage]):
     return BodyParts(
         content=[
-            mime2Model(part)
-            for part in mime.get_payload()
+            mime_to_model(part)
+            for part in mime._payload
         ],
         content_type=mime.get_content_type()
     )
@@ -322,33 +322,10 @@ def decode_payload(mime, payload):
     return payload
 
 
-def mime2Model(
+def mime_to_model(
         mime: Union[EmailMessage, Message],
         fold_attachment: bool = True
-) -> Optional[Union[list, MailObject, BodyParts]]:
-
-    try:
-        return get_mail(mime)
-    except ParseError:
-        obj = None
-
-    # Multipart mime that not represent a mail mime
-    if mime.is_multipart() and not obj:
-        return parse_multipart_mime(mime)
-
-        # Mime that can be either a file attachment or a body_part
-    filename = mime.get_filename(failobj="")
-    if mime.is_attachment() or filename:
-        return parse_attachment(mime, fold_attachment)
-
-        # Not multipart_mime
-    return BodyParts(
-        content=mime_content(mime),
-        content_type=mime.get_content_type()
-    )
-
-
-def faster_mime2model(mime: Union[EmailMessage, Message], fold_attachment: bool = True):
+):
     if mime.is_multipart():
         try:
             # Try to parse the mime object as a mail object,
@@ -360,13 +337,13 @@ def faster_mime2model(mime: Union[EmailMessage, Message], fold_attachment: bool 
             # Multipart mime that not represent a mail mime
             return parse_multipart_mime(mime)
 
-    # Not multipart_mime
+    # Not multipart-mime
 
     # case attachment or inline file
     if mime.is_attachment() or mime.get_filename():
         return parse_attachment(mime, fold_attachment)
 
-    # case body_parts
+    # non multipart-mime sample, it can be str or html-str type
     return BodyParts(
             content=mime_content(mime),
             content_type=mime.get_content_type()
