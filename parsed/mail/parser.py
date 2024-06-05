@@ -30,6 +30,8 @@ def parse_mail_byte(
 
     """
     mime = message_from_bytes(mail_byte, policy=policy, **kwargs)
+    # i know that i'm encountering an email so i have to use a different version of a function
+    # until i find a better way to flatten a mail
     return mime_to_model(mime, **kwargs)
 
 
@@ -205,18 +207,19 @@ def parse_mail_header(
 
 
 def get_attachment_and_body_parts(
-        mime
+        mime: Union[Message, EmailMessage],
+        flatted: bool = False
 ):
     content, attachments = [], []
     if mime.is_multipart():
-        for part in mime.get_payload():
-            part = mime_to_model(part)
-            if isinstance(part, BodyParts):
-                content.append(part)
-            elif isinstance(part, (File, MailFile)):
-                attachments.append(part)
-            elif isinstance(part, list):
-                attachments.extend(part)
+        for mime_part in mime._payload:
+            mime_part = mime_to_model(mime_part)
+            if isinstance(mime_part, BodyParts):
+                content.append(mime_part)
+            elif isinstance(mime_part, (File, MailFile)):
+                attachments.append(mime_part)
+            elif isinstance(mime_part, list):
+                attachments.extend(mime_part)
     else:
         content.append(
             BodyParts(
@@ -270,13 +273,14 @@ def mime_content(
         return mime.get_payload(decode=decode, **kwargs)
 
 
-def parse_multipart_mime(mime: Union[Message, EmailMessage]):
+def parse_multipart_mime(
+        mime: Union[Message, EmailMessage]
+):
     return BodyParts(
-        content=[
-            mime_to_model(part)
-            for part in mime._payload
-        ],
-        content_type=mime.get_content_type()
+            content=list(
+                map(mime_to_model, mime._payload)
+            ),
+            content_type=mime.get_content_type()
     )
 
 
@@ -332,19 +336,17 @@ def mime_to_model(
             # if the mime is not a mail then a HeaderDefect will be raised
             # and caught
             return get_mail(mime)
-
         except ParseError:
             # Multipart mime that not represent a mail mime
             return parse_multipart_mime(mime)
 
     # Not multipart-mime
-
     # case attachment or inline file
     if mime.is_attachment() or mime.get_filename():
         return parse_attachment(mime, fold_attachment)
 
-    # non multipart-mime sample, it can be str or html-str type
+    # non multipart-mime, it can be str or html-str type
     return BodyParts(
-            content=mime_content(mime),
-            content_type=mime.get_content_type()
+        content=mime_content(mime),
+        content_type=mime.get_content_type()
     )

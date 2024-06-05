@@ -132,6 +132,12 @@ def thread_from_string(
 def thread_from_mail(
         mail: MailObject
 ) -> Optional[MailThread]:
+    """
+        Recursively parses a mail object, getting the text from the body and all the eml file in the
+        attachments, and gathers all the mails into a MailThread object
+        :param mail: Mail object
+        :return: MailThread object or None
+    """
     mail_thread = MailThread()
     mails = mail.body.mails()
     mails.append(mail)

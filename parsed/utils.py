@@ -26,12 +26,14 @@ def unzip_attachments(
 ):
     attachments = []
     with ZipFile(io.BytesIO(attachment.content)) as zip_ref:
-        try:
-            for sub_file in zip_ref.filelist:
-                extraction_path = zip_ref.extract(sub_file)
-                # @TODO WE HAVE TO HANDLE WHEN THEN EXTRACTED ELEMENT IS A DIRECTORY AND
-                #  TAKE ALL THE FILE OUT OF IT
-
+        for sub_file in zip_ref.filelist:
+            extraction_path = zip_ref.extract(sub_file)
+            # @TODO WE HAVE TO HANDLE WHEN THEN EXTRACTED ELEMENT IS A DIRECTORY AND
+            #  TAKE ALL THE FILE OUT OF IT
+            if os.path.isdir(extraction_path):
+                # the extracted element is a directory and we have to visit it
+                ...
+            else:
                 with open(
                         extraction_path,
                         "rb"
@@ -47,9 +49,7 @@ def unzip_attachments(
                     )
                 )
                 os.remove(extraction_path)
-            return attachments
-        except Exception as e:
-            ...
+    return attachments
 
 
 weekday = {
