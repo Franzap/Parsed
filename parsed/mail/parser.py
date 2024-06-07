@@ -1,15 +1,14 @@
 from email import message_from_bytes, message_from_string
-from .exceptions import HeaderDefect
+from parsed.mail.exceptions import HeaderDefect
 from email.header import decode_header
 from email.message import Message, EmailMessage
 from email.policy import default, EmailPolicy
 from email.utils import parseaddr, parsedate_to_datetime
-from typing import Union, List, Optional, Type
+from typing import Union, List, Optional
 
 from parsed.enums import FileExtension
 from parsed.file.model import File
-from parsed.mail.exceptions import ParseError
-from parsed.mail.model import MailObject, BodyParts, EmailAddress, Header, MailFile, Body
+from parsed.mail.model import MailObject, BodyParts, EmailAddress, Header, MailFile, Body, FlattedBody
 from parsed.utils import unzip_attachments, extract_p7m
 
 
@@ -27,12 +26,9 @@ def parse_mail_byte(
         The policy keyword specifies a policy object that controls a number of
         aspects of the parser's operation.  The default policy maintains
         backward compatibility.
-
     """
-    mime = message_from_bytes(mail_byte, policy=policy, **kwargs)
-    # i know that i'm encountering an email so i have to use a different version of a function
-    # until i find a better way to flatten a mail
-    return mime_to_model(mime, **kwargs)
+    mime = message_from_bytes(mail_byte, policy=policy)
+    return parse_mail_message(mime, **kwargs)
 
 
 def parse_mail_string(
@@ -49,10 +45,9 @@ def parse_mail_string(
         The policy keyword specifies a policy object that controls a number of
         aspects of the parser's operation.  The default policy maintains
         backward compatibility.
-
     """
     mime = message_from_string(mail_string, policy=policy, **kwargs)
-    return mime_to_model(mime, **kwargs)
+    return parse_mail_message(mime, **kwargs)
 
 
 def flatten_attachment(
@@ -134,7 +129,7 @@ def get_address(
             address = parseaddr(address)
             addresses.append(
                 EmailAddress(
-                    nickname=address[0],
+                    name=address[0],
                     address=address[1]
                 )
             )
@@ -211,32 +206,62 @@ def get_attachment_and_body_parts(
         flatted: bool = False
 ):
     content, attachments = [], []
-    if mime.is_multipart():
-        for mime_part in mime._payload:
-            mime_part = mime_to_model(mime_part)
-            if isinstance(mime_part, BodyParts):
-                content.append(mime_part)
-            elif isinstance(mime_part, (File, MailFile)):
-                attachments.append(mime_part)
-            elif isinstance(mime_part, list):
-                attachments.extend(mime_part)
-    else:
-        content.append(
-            BodyParts(
-                content=mime.get_content(),
-                content_type=mime.get_content_type()
-            )
-        )
+    for part in mime._payload:
+        if part.is_multipart():
+            if is_attachment(part):
+                attachments.append(
+                    parse_mail_attachment(part)
+                )
+            else:
+                if not flatted:
+                    content.append(
+                        parse_multipart_mime(part)
+                    )
+                else:
+                    parse_multipart_mime(part, ref=content)
+        else:
+            if is_attachment(part):
+                attachments.append(
+                    parse_mime_attachment(part)
+                )
+            else:
+                content.append(
+                    BodyParts(
+                        content=mime_content(part),
+                        content_type=part.get_content_type()
+                    )
+                )
     return content, attachments
 
 
-def get_mail_obj(
-        mime: Union[EmailMessage, Message]
-):
+def parse_mail_message(
+        mime: Union[EmailMessage, Message],
+        flatted: bool = False
+) -> Optional[Union[MailObject, MailFile]]:
+    """
+        Parse a Message or EmailMessage object to a MailObject or MailFile object
+        :param mime: Message or EmailMessage object
+        :param flatted: Boolean indicating if the MailObject created must be flatted or in full depths
+        :return: MailObject or MailFile object
+    """
+
     header = parse_mail_header(mime)
-    content, attachments = get_attachment_and_body_parts(mime)
-    body = Body(
-        content=content,
+    content, attachments = get_attachment_and_body_parts(mime, flatted)
+    text_body = ""
+    html_body = ""
+    inline_file = []
+    for element in content:
+        if isinstance(element, (File, MailFile)):
+            inline_file.append(element)
+        elif element.content_type == "text/plain":
+            text_body += element.content
+        elif element.content_type == "text/html":
+            html_body += element.content
+
+    body = FlattedBody(
+        text_body=text_body,
+        html_body=html_body,
+        inline_file=inline_file,
         attachments=attachments
     )
     return MailObject(
@@ -245,26 +270,23 @@ def get_mail_obj(
     )
 
 
-def get_mail(
-        mime: Union[EmailMessage, Message]
-) -> Optional[Union[MailObject, MailFile]]:
-    filename = mime.get_filename(failobj="")
-    if "eml" in filename or mime.get_content_type() == "message/rfc822":
-        if mime.is_attachment():
-            mime = mime._payload[0]
-        mail_obj = get_mail_obj(mime)
-        return MailFile(
-            filename=filename or "email.eml",
-            content=mime.as_bytes(),
-            parsed_obj=mail_obj,
-            encoding=mime.get("Content-Transfer-encoding")
-        )
-    return get_mail_obj(mime)
+def parse_mail_attachment(
+        mime: Union[Message, EmailMessage]
+):
+    filename = mime.get_filename(failobj="email.eml")
+    mime = mime._payload[0]
+    mail_obj = parse_mail_message(mime)
+    return MailFile(
+        filename=filename,
+        content=mime.as_bytes(),
+        parsed_obj=mail_obj,
+        encoding=mime.get("Content-Transfer-encoding")
+    )
 
 
 def mime_content(
         mime: Union[Message, EmailMessage],
-        decode=True,
+        decode: bool = True,
         **kwargs
 ) -> Optional[Union[EmailMessage, Message, str, bytes]]:
     try:
@@ -274,17 +296,24 @@ def mime_content(
 
 
 def parse_multipart_mime(
-        mime: Union[Message, EmailMessage]
-):
-    return BodyParts(
+        mime: Union[Message, EmailMessage],
+        ref: Optional[list] = None
+) -> Optional[BodyParts]:
+    if ref is not None:
+        for part in mime._payload:
+            model = mime_to_model(part, ref=ref)
+            if model:
+                ref.append(model)
+    else:
+        return BodyParts(
             content=list(
                 map(mime_to_model, mime._payload)
             ),
             content_type=mime.get_content_type()
-    )
+        )
 
 
-def parse_attachment(
+def parse_mime_attachment(
         mime: Union[Message, EmailMessage],
         fold_attachment: bool = True
 ):
@@ -318,35 +347,39 @@ def _has_surrogates(s):
 
 def decode_payload(mime, payload):
     if _has_surrogates(payload):
-        bpayload = payload.encode('ascii', 'surrogateescape')
+        b_payload = payload.encode('ascii', 'surrogateescape')
         try:
-            payload = bpayload.decode(mime.get_param('charset', 'ascii'), 'replace')
+            payload = b_payload.decode(mime.get_param('charset', 'ascii'), 'replace')
         except LookupError:
-            payload = bpayload.decode('ascii', 'replace')
+            payload = b_payload.decode('ascii', 'replace')
     return payload
 
 
 def mime_to_model(
         mime: Union[EmailMessage, Message],
-        fold_attachment: bool = True
+        fold_attachment: bool = True,
+        ref: Optional[list] = None
 ):
     if mime.is_multipart():
-        try:
-            # Try to parse the mime object as a mail object,
-            # if the mime is not a mail then a HeaderDefect will be raised
-            # and caught
-            return get_mail(mime)
-        except ParseError:
-            # Multipart mime that not represent a mail mime
-            return parse_multipart_mime(mime)
+        # Multipart-mime but not a mail
+        return parse_multipart_mime(mime, ref)
 
     # Not multipart-mime
-    # case attachment or inline file
-    if mime.is_attachment() or mime.get_filename():
-        return parse_attachment(mime, fold_attachment)
 
-    # non multipart-mime, it can be str or html-str type
+        # Case attachment or inline file
+    if is_attachment(mime):
+        return parse_mime_attachment(mime, fold_attachment)
+
+        # str or html-str type
     return BodyParts(
         content=mime_content(mime),
         content_type=mime.get_content_type()
     )
+
+
+def is_attachment(
+        mime: Union[Message, EmailMessage]
+) -> bool:
+    c_d = mime.get_content_disposition()
+    f_n = mime.get_filename()
+    return c_d == 'attachment' or f_n

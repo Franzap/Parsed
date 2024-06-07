@@ -1,24 +1,3 @@
-"""
-MAIL
-
-# HEADER DELLA MAIL
-    FROM: PERSONA CHE INVIA LA MAIL **LA MAIL PROVIENE DA UNA E UNA SOLA PERSONA **
-    TO: LISTA DI PERSONE CHE PUO RICEVERE O MENO LA MAIL INVIATA
-     CC: LISTA DI PERSONE CHE PUÒ ESSERE IN CC ALLA MAIL INVIATA
-    SUBJECT: SOGGETTO DELLA MAIL
-    RECEIVED: DATETIME CHE RAPPRESENTA QUANDO L'EMAIL È RICEVUTA
-
-# BODY DELLA MAIL
-
-BODY: TESTUALE CON IMMAGINI INLINE (SCELTA TRA INCLUDERE O MENO LE IMMAGINI)
-
-ATTACHMENTS: SONO ALLEGATI DELLA MAIL, CHE POSSONO VARIARE TRA MAIL, ZIP, FILE CRIPTATI ECC
-
-THREAD_ID:
-    if a mail is part of a thread of mails, then thread_id will be set equals to the id of thread
-    this means that every mail in thread will have the same ID
-
-"""
 from datetime import datetime
 from typing import Optional, Union, List
 
@@ -34,8 +13,8 @@ class BodyParts(BaseModel):
 
 
 class Body(BaseModel):
-    content: List[BodyParts]
-    attachments: Optional[List[Union[File, 'MailFile']]] = None
+    content: List[Union[BodyParts, File]]
+    attachments: List[Union[File, 'MailFile']] = []
 
     def attachments_of_extension(self, extension: str) -> List['MailFile']:
         if self.attachments:
@@ -53,9 +32,16 @@ class Body(BaseModel):
         return mails
 
 
+class FlattedBody(BaseModel):
+    text_body: Optional[str] = None
+    html_body: Optional[str] = None
+    inline_file: Optional[List[Union[File, 'MailFile']]] = []
+    attachments: Optional[List[Union[File, 'MailFile']]] = []
+
+
 class EmailAddress(BaseModel):
     name: Optional[str] = None
-    address: str
+    address: Optional[str] = None
 
     def __str__(self):
         return self.address
@@ -70,8 +56,31 @@ class Header(BaseModel):
 
 
 class MailObject(BaseModel):
+    """
+    # HEADER
+        FROM:
+            the person sending the mail **the mail comes from a single person **
+        TO:
+            list of people who can receive the mail
+        CC:
+            list of people who can be cc'd on the mail
+        SUBJECT:
+            Subject of the mail
+        RECEIVED:
+            date and time when the email was received
+
+    # MAIL
+        BODY:
+            text with inline images (select whether to include or not)
+        ATTACHMENTS:
+            these are the attachments of the mail, which can vary between mail, zip, encrypted files, etc.
+
+    # THREAD_ID:
+        if a mail is part of a thread of mails, then thread_id will be set equals to the id of thread
+        this means that every mail in thread will have the same ID
+    """
     header: Header
-    body: Body
+    body: Union[Body, FlattedBody]
     thread_id: Optional[Union[str, int]] = None
 
     def __lt__(self, other):

@@ -1,3 +1,4 @@
+import cProfile
 import os
 from statistics import mean
 
@@ -5,7 +6,6 @@ from tqdm import tqdm
 
 from parsed.enums import FileExtension
 from parsed.mail.parser import parse_mail_byte
-from parsed.thread import thread_from_mail
 import time
 
 if __name__ == '__main__':
@@ -19,8 +19,9 @@ if __name__ == '__main__':
                     with open(os.path.join(mail_dir, file), mode="rb") as eml:
                         byte = eml.read()
                     t1 = time.perf_counter()
-                    mail = parse_mail_byte(byte)
+                    mail = parse_mail_byte(byte, flatted=True)
                     t2 = time.perf_counter()
                     times.append(t2 - t1)
+                    cProfile.run("parse_mail_byte(byte)", sort="tottime")
 
     print(min(times), max(times), mean(times))
