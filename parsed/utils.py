@@ -30,10 +30,7 @@ def unzip_attachments(
             extraction_path = zip_ref.extract(sub_file)
             # @TODO WE HAVE TO HANDLE WHEN THEN EXTRACTED ELEMENT IS A DIRECTORY AND
             #  TAKE ALL THE FILE OUT OF IT
-            if os.path.isdir(extraction_path):
-                # the extracted element is a directory and we have to visit it
-                ...
-            else:
+            if not os.path.isdir(extraction_path):
                 with open(
                         extraction_path,
                         "rb"
