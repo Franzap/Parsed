@@ -1,4 +1,6 @@
 from email import message_from_bytes, message_from_string
+
+from parsed.mail import Body
 from parsed.mail.exceptions import HeaderDefect
 from email.message import Message, EmailMessage
 from email.policy import default, EmailPolicy
@@ -59,7 +61,7 @@ def parse_mail_header(
         raise HeaderDefect
 
     receivers = get_address(
-        mime.get("To")
+        mime.get("To", mime.get("Delivered-To"))
     )
     if not receivers:
         raise HeaderDefect
@@ -154,23 +156,29 @@ def parse_mail_message(
 
     header = parse_mail_header(mime)
     content, attachments = get_attachment_and_body_parts(mime, flatted)
-    text_body = ""
-    html_body = ""
-    inline_file = []
-    for element in content:
-        if isinstance(element, (File, MailFile)):
-            inline_file.append(element)
-        elif element.content_type == "text/plain":
-            text_body += element.content
-        elif element.content_type == "text/html":
-            html_body += element.content
+    if flatted:
+        text_body = ""
+        html_body = ""
+        inline_file = []
+        for element in content:
+            if isinstance(element, (File, MailFile)):
+                inline_file.append(element)
+            elif element.content_type == "text/plain":
+                text_body += element.content
+            elif element.content_type == "text/html":
+                html_body += element.content
 
-    body = FlattedBody(
-        text_body=text_body,
-        html_body=html_body,
-        inline_file=inline_file,
-        attachments=attachments
-    )
+        body = FlattedBody(
+            text_body=text_body,
+            html_body=html_body,
+            inline_file=inline_file,
+            attachments=attachments
+        )
+    else:
+        body = Body(
+            content=content,
+            attachments=attachments
+        )
     return MailObject(
         header=header,
         body=body
@@ -251,7 +259,7 @@ def mime_to_model(
     if is_attachment(mime):
         return parse_mime_attachment(mime, fold_attachment)
 
-        # str or html-str type
+    # str or html-str type
     return BodyParts(
         content=mime_content(mime),
         content_type=mime.get_content_type()
