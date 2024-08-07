@@ -92,54 +92,43 @@ def get_attachment_and_body_parts(
         flatted: bool = False
 ):
     content, attachments = [], []
-    for part in mime._payload:
-        if is_attachment(part):
-            parsed_atts = parse_mime_attachment(part)
-            if isinstance(parsed_atts, list):
-                attachments.extend(parsed_atts)
-            else:
-                attachments.append(parsed_atts)
-        else:
-            if part.is_multipart():
-                if not flatted:
-                    content.append(
-                        parse_multipart_mime(part)
-                    )
+    if mime.is_multipart():
+        for part in mime._payload:
+            if is_attachment(part):
+                parsed_atts = parse_mime_attachment(part)
+                if isinstance(parsed_atts, list):
+                    attachments.extend(parsed_atts)
                 else:
-                    parse_multipart_mime(part, ref=content)
+                    attachments.append(parsed_atts)
             else:
-                content.append(
-                    BodyParts(
-                        content=mime_content(part),
-                        content_type=part.get_content_type()
+                if part.is_multipart():
+                    if not flatted:
+                        content.append(
+                            parse_multipart_mime(part)
+                        )
+                    else:
+                        parse_multipart_mime(part, ref=content)
+                else:
+                    content.append(
+                        BodyParts(
+                            content=mime_content(part),
+                            content_type=part.get_content_type()
+                        )
                     )
+    else:
+        if is_attachment(mime):
+            att = parse_mime_attachment(mime)
+            if isinstance(att, list):
+                attachments.extend(att)
+            else:
+                attachments.append(att)
+        else:
+            content.append(
+                BodyParts(
+                    content=mime_content(mime),
+                    content_type=mime.get_content_type()
                 )
-        # if part.is_multipart():
-        #     if is_attachment(part):
-        #         attachments.append(
-        #             parse_mail_attachment(part)
-        #         )
-        #     else:
-        #         if not flatted:
-        #             content.append(
-        #                 parse_multipart_mime(part)
-        #             )
-        #         else:
-        #             parse_multipart_mime(part, ref=content)
-        # else:
-        #     if is_attachment(part):
-        #         att = parse_mime_attachment(part)
-        #         if isinstance(att, list):
-        #             attachments.extend(att)
-        #         else:
-        #             attachments.append(att)
-        #     else:
-        #         content.append(
-        #             BodyParts(
-        #                 content=mime_content(part),
-        #                 content_type=part.get_content_type()
-        #             )
-        #         )
+            )
     return content, attachments
 
 
